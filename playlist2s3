@@ -1,0 +1,69 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
+from boto.s3.connection import S3Connection
+from boto.s3.key import Key
+from plistlib import readPlist
+from sys import argv, stdout, stderr, exit
+from urlparse import urlparse
+from urllib import url2pathname, quote
+
+def progress(uploaded, total):
+    length = 72
+    fraction = float(uploaded) / total
+    bar = (int(length * fraction) * '=').ljust(length)
+    percent = ('%s%%' % int(fraction * 100)).rjust(5)
+    progress = '[%s]%s' % (bar, percent)
+    stdout.write('\x1B[2K') # erase current line
+    stdout.write('\x1B[0G') # move to column 0
+    stdout.write(progress)
+    stdout.flush()
+
+def clean(value):
+    if isinstance(value, unicode):
+        value = value.encode('utf-8')
+    if isinstance(value, str):
+        return quote(value.replace('\r\n', ' ').replace('\n', ' '))
+    else:
+        return quote(str(value))
+
+def stringify_values(d):
+    return dict([ (k,clean(v)) for k,v in d.iteritems() ])
+
+def upload_track(conn, bucket, metadata, m3u, all=False):
+    path = url2pathname(urlparse(metadata['Location'])[2])
+    key_name = '/'.join(path.split('/')[6:])
+    if all or (not bucket.get_key(key_name)):
+        track = ('%s: %s' % (metadata['Artist'], metadata['Name']))
+        print '\nUploading %s...' % track[:64].encode('utf-8')
+        key = Key(bucket, key_name)
+        key.update_metadata(stringify_values(metadata))
+        key.set_contents_from_filename(
+            path, cb=progress, num_cb=100, policy='public-read')
+        m3u.write('http://%s.s3.amazonaws.com/%s\n' % (BUCKET, quote(key_name)))
+    else:
+        print >> stderr, 'Skipping %s' % key_name
+
+def cli_parse():
+    if len(argv) < 2 or len(argv) > 3: 
+        exit('Usage: %s [--all] playlist.xml' % argv[0])
+    if len(argv) == 3: 
+        if argv[1] == '--all': 
+            return True, argv[2]
+        exit('Usage: %s [--all] playlist.xml' % argv[0])
+    return False, argv[1]
+
+if __name__ == "__main__":
+    if len(argv) < 2 or len(argv) > 3: 
+        exit('Usage: %s [--all] playlist.xml' % argv[0])
+    upload_all, playlist = cli_parse()
+    data = readPlist(playlist)
+    conn = S3Connection(AWS_ACCESS_KEY, AWS_SECRET_KEY, debug=0)
+    bucket = conn.create_bucket(BUCKET)
+    m3u = open('%s.m3u' % playlist[:-4], 'a')
+    count = 0
+    for track in data['Tracks'].values():
+        upload_track(conn, bucket, track, m3u, upload_all)
+        count += 1
+    print '\nUploaded %s tracks.' % count
+    m3u.close()
