@@ -5,5 +5,5 @@ in Amazon S3, and listening to it from HTML5-compatible web browsers.
 to an S3 bucket. It requires the [boto][] Python interface to Amazon
 Web Services.
 
-[playlist2s3]: blob/master/playlist2s3
+[playlist2s3]: s3tunes/blob/master/playlist2s3
 [boto]: http://code.google.com/p/boto/
