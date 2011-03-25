@@ -8,6 +8,8 @@ from sys import argv, stdout, stderr, exit
 from urlparse import urlparse
 from urllib import url2pathname, quote
 
+from secrets import *
+
 def progress(uploaded, total):
     length = 72
     fraction = float(uploaded) / total
